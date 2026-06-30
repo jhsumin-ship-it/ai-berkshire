@@ -37,6 +37,13 @@ rebalance:
   band: 0.03               # 목표대비 ±3%p 벗어날 때만 거래(회전율·비용 절감)
   default_cash: 100000000  # portfolio.yaml 없을 때 가정 자본(원)
 
+# ── 전체시장 스크리닝 (Phase 5, 유니버스 자동확장) ───────────
+market_screen:
+  markets: [KOSPI, KOSDAQ]
+  top_per_market: 60       # 시장별 시총 상위 N 사전필터(전체 4천여종 중)
+  min_trading_eok: 50      # 유동성: 당일 거래대금 ≥ 50억
+  show_top: 40             # 리포트 상위 표시 수
+
 # ── 백테스트 (Phase 2) ───────────────────────────────────────
 backtest:
   start: "2024-04-01"      # FY2023 실적 공시 이후(룩어헤드 방지)

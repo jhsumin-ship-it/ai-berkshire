@@ -153,6 +153,37 @@ def _yearly(res: dict) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
+def render_market(ranked: pd.DataFrame, screened: pd.DataFrame, asof: str,
+                  params: dict) -> str:
+    L = []
+    L.append("# AI Berkshire — 전체시장 가치·퀄리티 스크린 (Phase 5)\n")
+    L.append(f"> **기준일** {asof} · KOSPI·KOSDAQ 시총상위 사전필터 → 심층 스크리닝 · "
+             f"가치50:퀄50\n")
+    L.append(f"> 후보 {params['n_cand']}종(시장별 시총상위 {params['top_per_market']}·거래대금≥"
+             f"{params['min_trading_eok']}억) 중 통과 {len(ranked)}종 · **투자권유 아님.**\n")
+
+    show = ranked.head(params.get("show_top", 40))
+    L.append("\n## 상위 가치·퀄리티 종목\n")
+    L.append("| 순위 | 종목(코드) | 시장 | 현재가 | PER | PBR | ROE | 영업이익률 | 순이익률 | 부채비율 | 컨센상승여력 | 퀄z | 가치z | 종합 |")
+    L.append("|--:|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|")
+    for _, r in show.iterrows():
+        L.append("| {rk} | {nm}({cd}) | {mk} | {px} | {per} | {pbr} | {roe} | {opm} | {npm} | {dr} | {up} | {qz:+.2f} | {vz:+.2f} | **{sc:+.2f}** |".format(
+            rk=r["rank"], nm=r["name"], cd=r["code"], mk=r["sector"], px=_fmt(r["price"]),
+            per=_fmt(r.get("per"), 1), pbr=_fmt(r.get("pbr"), 2), roe=_fmt(r.get("roe"), 1, pct=True),
+            opm=_fmt(r.get("op_margin"), 1, pct=True), npm=_fmt(r.get("net_margin"), 1, pct=True),
+            dr=_fmt(r.get("debt_ratio"), 1, pct=True), up=_fmt(r.get("upside"), 1, pct=True, plus=True),
+            qz=r["quality_z"], vz=r["value_z"], sc=r["score"]))
+
+    out = screened[screened["screen_out"] != ""]
+    L.append(f"\n## 스크린 탈락 {len(out)}종 (적자·고부채·EPS≤0 등)\n")
+    L.append("\n## 한계\n")
+    L.append("- 전체 4천여종을 다 심층호출하지 않고 **시총상위만** 사전필터(소형 저평가주 누락 가능).")
+    L.append("- 섹터 태그 없이 시장(KOSPI/KOSDAQ)로만 그룹화 — 섹터중립 미적용.")
+    L.append("- 컨센·배당은 표시만, 점수 미반영. **백테스트 미검증 종목 다수 포함**, 투자권유 아님.")
+    L.append("\n---\n*AI Berkshire quant Phase 5 — `python quant/run.py screen-market`. 투자권유 아님.*")
+    return "\n".join(L)
+
+
 def render_rebalance(picks, trades_res: dict, port: dict, cfg: dict, asof: str) -> str:
     s = trades_res["summary"]
     df = trades_res["trades"]

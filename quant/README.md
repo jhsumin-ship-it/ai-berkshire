@@ -11,8 +11,18 @@ python quant/run.py rank             # 점수화·랭킹·후보포트 → repor
 python quant/run.py backtest --fetch # 주간 리밸런싱 백테스트(2.25년) → 백테스트-*.md
 python quant/run.py compare          # 팩터 변형 A/B 비교 → 백테스트-팩터비교-*.md
 python quant/run.py rebalance        # 주간 매매지시(보유 대비) → 리밸런싱-*.md
+python quant/run.py backtest-long    # DART 다레짐 6.5년 백테스트 → 백테스트-장기다레짐-*.md
+python quant/run.py screen-market --top 60   # 전체시장 가치·퀄리티 스크린 → 전체시장스크린-*.md
 for t in factors backtest portfolio; do python quant/tests/test_$t.py; done
 ```
+
+## 주간 자동화 (Windows 작업 스케줄러)
+래퍼 `quant/weekly_rebalance.ps1` 준비됨. 아래 한 줄로 **매주 월 08:00 자동 실행** 등록:
+```powershell
+schtasks /Create /TN "AI-Berkshire-Weekly-Rebalance" /SC WEEKLY /D MON /ST 08:00 /F `
+  /TR "powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\jhsum\code\ai-berkshire\quant\weekly_rebalance.ps1"
+```
+해제: `schtasks /Delete /TN "AI-Berkshire-Weekly-Rebalance" /F` · 로그: `quant/data/weekly.log`
 
 보유현황은 `quant/portfolio.yaml`(`portfolio.example.yaml` 복사)에 `cash`·`positions`로 입력.
 없으면 `default_cash` 전액 현금 가정(첫 리밸런싱 = 전량 신규매수).
@@ -63,8 +73,10 @@ quant/
 - **Phase 2 (완료)**: 백테스트 엔진(point-in-time, KR 비용모델) + 자산곡선
 - **Phase 2.5 (완료)**: 팩터 A/B 비교 → 퀄50·가25·모25 블렌드 채택
 - **Phase 3 (완료)**: 주간 리밸런싱 매매지시(회전율 밴드 ±3%p) 생성
-- Phase 2.1(선택): DART 시점데이터로 다레짐(2018~) 백테스트 확장
-- Phase 4(선택): 스케줄 자동화(매주 자동 리밸런싱 리포트)
+- **Phase 2.1 (완료)**: DART 다년 재무로 6.5년 다레짐 백테스트 → 가치·퀄리티 확정
+- **Phase 4 (완료)**: 주간 자동화 래퍼 + 작업 스케줄러 등록(위 참조)
+- **Phase 5 (완료)**: 전체시장(KOSPI·KOSDAQ) 자동 스크린(`screen-market`)
+- 향후(선택): 섹터중립 전체시장 포트, 실거래 연동, 알림
 
 ## 면책
 가치투자 방법론 기반 연구 도구이며 **투자권유가 아님**. 실투자는 2개 이상 독립소스

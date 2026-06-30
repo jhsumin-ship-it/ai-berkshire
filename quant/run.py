@@ -33,6 +33,7 @@ import report as report_mod  # noqa: E402
 import backtest as bt_mod  # noqa: E402
 import history  # noqa: E402
 import portfolio as pf_mod  # noqa: E402
+import market as market_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
@@ -197,6 +198,60 @@ def rebalance(cfg: dict, asof: str, fetch: bool = True) -> None:
     print(f"리포트: {out_path}")
 
 
+def screen_market(cfg: dict, asof: str, fetch: bool = True, top_per_market: int | None = None) -> None:
+    ms = cfg.get("market_screen", {})
+    tpm = top_per_market or ms.get("top_per_market", 60)
+    markets = ms.get("markets", ["KOSPI", "KOSDAQ"])
+    min_tv = ms.get("min_trading_eok", 50)
+    cache = os.path.join(DATA_DIR, f"market-snapshot-{asof}.json")
+
+    if fetch or not os.path.exists(cache):
+        print(f"전체시장 후보 발굴: {markets} 시총상위 {tpm}/시장, 거래대금≥{min_tv}억 …")
+        cand = market_mod.build_candidates(markets, tpm, min_tv)
+        print(f"후보 {len(cand)}종 → 심층 스크리닝(종목별 시세·재무)…")
+        recs = []
+        for i, c in enumerate(cand, 1):
+            try:
+                rec = naver.fetch_stock(c["code"])
+                rec["sector"] = c["market"]
+                rec["name"] = rec.get("name") or c["name"]
+                recs.append(rec)
+            except Exception:  # noqa: BLE001
+                pass
+            if i % 25 == 0:
+                print(f"  … {i}/{len(cand)}")
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(cache, "w", encoding="utf-8") as f:
+            json.dump(recs, f, ensure_ascii=False)
+        print(f"저장: {cache} ({len(recs)}종)")
+    else:
+        with open(cache, encoding="utf-8") as f:
+            recs = json.load(f)
+        print(f"캐시 사용: {cache} ({len(recs)}종)")
+
+    df = pd.DataFrame([r for r in recs if "error" not in r and r.get("price")])
+    df = factors.compute_scores(df, cfg)
+    screened = rank_select.apply_screen(df, cfg)
+    ranked = rank_select.rank_universe(screened)
+
+    params = {"n_cand": len(df), "top_per_market": tpm, "min_trading_eok": min_tv,
+              "show_top": ms.get("show_top", 40)}
+    md = report_mod.render_market(ranked, screened, asof, params)
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    out_path = os.path.join(REPORT_DIR, f"전체시장스크린-{asof}.md")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    print("\n" + "=" * 72)
+    print(f"전체시장 스크린 · 후보 {len(df)}종 · 통과 {len(ranked)}종")
+    print("=" * 72)
+    print(f"{'순위':>3} {'종목':<14} {'시장':<7} {'종합':>7} {'ROE':>6} {'PER':>7}")
+    for _, r in ranked.head(20).iterrows():
+        print(f"{r['rank']:>3} {str(r['name'])[:13]:<14} {str(r['sector'])[:6]:<7} "
+              f"{r['score']:>+7.2f} {(r.get('roe') or 0):>5.1f}% {(r.get('per') or 0):>7.1f}")
+    print(f"\n리포트: {out_path}")
+
+
 def backtest_long(cfg: dict, asof: str, fetch: bool = False) -> None:
     print("장기 다레짐 패널 구축 중(DART 재무 + 2019~ 가격)…")
     panels = bt_mod.build_panels_dart(cfg, use_cache=not fetch)
@@ -338,6 +393,10 @@ def main():
     p_bl = sub.add_parser("backtest-long", help="DART 다레짐 장기 백테스트(2020~, 2022 약세장 포함)")
     p_bl.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_bl.add_argument("--fetch", action="store_true", help="DART·시계열 재수집(기본: 캐시)")
+    p_sm = sub.add_parser("screen-market", help="전체시장(KOSPI·KOSDAQ) 가치·퀄리티 스크린")
+    p_sm.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
+    p_sm.add_argument("--no-fetch", action="store_true", help="캐시만 사용")
+    p_sm.add_argument("--top", type=int, default=None, help="시장별 시총상위 N 사전필터")
     args = ap.parse_args()
 
     cfg = load_cfg()
@@ -355,6 +414,8 @@ def main():
         rebalance(cfg, asof, fetch=not args.no_fetch)
     elif args.cmd == "backtest-long":
         backtest_long(cfg, asof, fetch=args.fetch)
+    elif args.cmd == "screen-market":
+        screen_market(cfg, asof, fetch=not args.no_fetch, top_per_market=args.top)
     else:
         ap.print_help()
 

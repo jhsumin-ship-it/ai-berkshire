@@ -29,10 +29,13 @@ def apply_screen(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
 
 def rank_universe(df: pd.DataFrame) -> pd.DataFrame:
     """통과 종목만 점수 내림차순 정렬 + 전체·섹터내 순위."""
-    passed = df[df["screen_out"] == ""].copy()
-    passed = passed.sort_values("score", ascending=False).reset_index(drop=True)
-    passed["rank"] = passed.index + 1
-    passed["sector_rank"] = passed.groupby("sector")["score"].rank(ascending=False, method="first").astype(int)
+    passed = df[df["screen_out"] == ""].copy() if "screen_out" in df.columns else df.iloc[0:0].copy()
+    passed = passed.sort_values("score", ascending=False).reset_index(drop=True) if len(passed) else passed
+    passed["rank"] = passed.index + 1 if len(passed) else []
+    if len(passed):
+        passed["sector_rank"] = passed.groupby("sector")["score"].rank(ascending=False, method="first").astype(int)
+    else:
+        passed["sector_rank"] = []
     return passed
 
 
