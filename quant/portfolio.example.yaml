@@ -1,0 +1,8 @@
+# 보유 현황 — 이 파일을 portfolio.yaml로 복사해 채우세요.
+# rebalance 실행 시 자동으로 quant/portfolio.yaml을 읽습니다(없으면 default_cash 전액 현금 가정).
+
+cash: 100000000            # 보유 현금(원)
+positions:                 # {종목코드: 보유주식수}
+  "058470": 100            # 예: 리노공업 100주
+  "145020": 30             # 예: 휴젤 30주
+  # 비우면(positions: {}) 첫 리밸런싱 = 전량 신규매수

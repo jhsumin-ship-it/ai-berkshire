@@ -1,0 +1,119 @@
+# AI Berkshire 주간 리밸런싱 퀀트 — 설정
+# 8섹터 가치·퀄리티 점수가중 (Phase 1)
+
+# ── 팩터 가중 (퀄50 : 가치25 : 모멘25 — Phase 2.5 백테스트 검증 블렌드) ──
+# 레짐 분해: 가치·퀄리티=하락장 방어, 모멘텀=상승장 캡처. 블렌드가 전 구간 robust.
+weights:
+  quality: 0.5
+  value: 0.25
+  momentum: 0.25
+
+# 퀄리티 팩터 (높을수록 좋음; debt_ratio는 코드에서 부호 반전)
+quality_factors: [roe, op_margin, net_margin, debt_ratio]
+# 가치 팩터 (백테스트 검증과 동일 — earnings_yield·book_yield만 점수화)
+# 컨센 상승여력(upside)·배당은 표시만 하고 점수엔 미반영(과거 검증 불가·노이즈)
+value_factors: [earnings_yield, book_yield]
+# 모멘텀 팩터 (26주 수익률)
+momentum_factors: [mom]
+mom_lookback_weeks: 26
+
+# ── 하드 스크린 (통과해야 랭킹 대상) ─────────────────────────
+screen:
+  require_positive_net_income: true   # 최근 회계연도 당기순이익 > 0 (적자 제외)
+  require_positive_per: true          # EPS>0 (PER 산출 가능)
+  min_trading_value_eok: 30           # 최근 거래대금 최소 30억원 (유동성)
+
+# ── 선별·비중 ────────────────────────────────────────────────
+selection:
+  top_per_sector: 2        # 섹터별 상위 N
+  max_names: 12            # 최종 포트 최대 종목수
+  max_weight: 0.15         # 종목당 비중 상한
+  max_sector_weight: 0.30  # 섹터당 비중 상한
+
+# ── 주간 리밸런싱 (Phase 3) ──────────────────────────────────
+rebalance:
+  band: 0.03               # 목표대비 ±3%p 벗어날 때만 거래(회전율·비용 절감)
+  default_cash: 100000000  # portfolio.yaml 없을 때 가정 자본(원)
+
+# ── 백테스트 (Phase 2) ───────────────────────────────────────
+backtest:
+  start: "2024-04-01"      # FY2023 실적 공시 이후(룩어헤드 방지)
+  end: "2026-06-27"
+  reporting_lag_days: 90   # 회계연도말 + 90일 후부터 해당 재무 사용
+  rebalance: "W-FRI"       # 주간(금요일 종가)
+  # 과거 재구성 가능한 가치팩터만 사용(컨센 상승여력·배당은 과거 시점 확보 불가 → 제외)
+  value_factors: [earnings_yield, book_yield]
+  cost:
+    commission: 0.00015    # 수수료(편도)
+    slippage: 0.001        # 슬리피지(편도)
+    sell_tax: 0.0018       # 매도 거래세(보수적 가정)
+  benchmarks:
+    "069500": "KODEX200"
+    "229200": "KODEX코스닥150"
+
+# ── 유니버스 (code, name, sector) ───────────────────────────
+# 섹터: AI / 반도체소부장 / 전력 / ESS2차전지 / 로봇 / 조선 / 바이오 / 우주항공방산
+universe:
+  # AI
+  - {code: "005930", name: "삼성전자",            sector: "AI"}
+  - {code: "000660", name: "SK하이닉스",          sector: "AI"}
+  - {code: "042700", name: "한미반도체",          sector: "AI"}
+  - {code: "012510", name: "더존비즈온",          sector: "AI"}
+  # 반도체 소부장
+  - {code: "058470", name: "리노공업",            sector: "반도체소부장"}
+  - {code: "357780", name: "솔브레인",            sector: "반도체소부장"}
+  - {code: "095340", name: "ISC",                 sector: "반도체소부장"}
+  - {code: "064760", name: "티씨케이",            sector: "반도체소부장"}
+  - {code: "240810", name: "원익IPS",             sector: "반도체소부장"}
+  - {code: "036930", name: "주성엔지니어링",      sector: "반도체소부장"}
+  - {code: "067310", name: "하나마이크론",        sector: "반도체소부장"}
+  - {code: "005290", name: "동진쎄미켐",          sector: "반도체소부장"}
+  - {code: "101490", name: "에스앤에스텍",        sector: "반도체소부장"}
+  # 전력
+  - {code: "062040", name: "산일전기",            sector: "전력"}
+  - {code: "033100", name: "제룡전기",            sector: "전력"}
+  - {code: "267260", name: "HD현대일렉트릭",      sector: "전력"}
+  - {code: "298040", name: "효성중공업",          sector: "전력"}
+  - {code: "010120", name: "LS일렉트릭",          sector: "전력"}
+  - {code: "001440", name: "대한전선",            sector: "전력"}
+  - {code: "000500", name: "가온전선",            sector: "전력"}
+  # ESS / 2차전지
+  - {code: "373220", name: "LG에너지솔루션",      sector: "ESS2차전지"}
+  - {code: "006400", name: "삼성SDI",             sector: "ESS2차전지"}
+  - {code: "247540", name: "에코프로비엠",        sector: "ESS2차전지"}
+  - {code: "003670", name: "포스코퓨처엠",        sector: "ESS2차전지"}
+  - {code: "066970", name: "엘앤에프",            sector: "ESS2차전지"}
+  - {code: "082920", name: "비츠로셀",            sector: "ESS2차전지"}
+  # 로봇
+  - {code: "454910", name: "두산로보틱스",        sector: "로봇"}
+  - {code: "277810", name: "레인보우로보틱스",    sector: "로봇"}
+  - {code: "058610", name: "에스피지",            sector: "로봇"}
+  - {code: "098460", name: "고영",                sector: "로봇"}
+  - {code: "060280", name: "큐렉소",              sector: "로봇"}
+  - {code: "348340", name: "뉴로메카",            sector: "로봇"}
+  - {code: "090360", name: "로보스타",            sector: "로봇"}
+  # 조선
+  - {code: "009540", name: "HD한국조선해양",      sector: "조선"}
+  - {code: "042660", name: "한화오션",            sector: "조선"}
+  - {code: "010140", name: "삼성중공업",          sector: "조선"}
+  - {code: "329180", name: "HD현대중공업",        sector: "조선"}
+  - {code: "082740", name: "한화엔진",            sector: "조선"}
+  - {code: "033500", name: "동성화인텍",          sector: "조선"}
+  - {code: "017960", name: "한국카본",            sector: "조선"}
+  - {code: "010620", name: "HD현대미포",          sector: "조선"}
+  # 바이오 (에스테틱/실적형)
+  - {code: "145020", name: "휴젤",                sector: "바이오"}
+  - {code: "214450", name: "파마리서치",          sector: "바이오"}
+  - {code: "214150", name: "클래시스",            sector: "바이오"}
+  - {code: "128940", name: "한미약품",            sector: "바이오"}
+  - {code: "086900", name: "메디톡스",            sector: "바이오"}
+  - {code: "069620", name: "대웅제약",            sector: "바이오"}
+  - {code: "185750", name: "종근당",              sector: "바이오"}
+  # 우주항공·방산
+  - {code: "064350", name: "현대로템",            sector: "우주항공방산"}
+  - {code: "012450", name: "한화에어로스페이스",  sector: "우주항공방산"}
+  - {code: "079550", name: "LIG넥스원",           sector: "우주항공방산"}
+  - {code: "047810", name: "한국항공우주",        sector: "우주항공방산"}
+  - {code: "103140", name: "풍산",                sector: "우주항공방산"}
+  - {code: "099320", name: "쎄트렉아이",          sector: "우주항공방산"}
+  - {code: "272210", name: "한화시스템",          sector: "우주항공방산"}
