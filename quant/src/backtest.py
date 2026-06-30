@@ -19,11 +19,108 @@ import os
 
 import pandas as pd
 
+import re
+
 import factors
 import rank_select
 import history
+import dart
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+
+def parse_korean_mcap(s) -> float | None:
+    """'1,938조 5,504억' / '8,256억' / '2조 8,742억' → KRW(float)."""
+    if not s:
+        return None
+    t = str(s).replace(",", "").replace(" ", "")
+    val = 0.0
+    mjo = re.search(r"([\d.]+)조", t)
+    meok = re.search(r"([\d.]+)억", t)
+    if mjo:
+        val += float(mjo.group(1)) * 1e12
+    if meok:
+        val += float(meok.group(1)) * 1e8
+    if not mjo and not meok:
+        n = re.search(r"[\d.]+", t)
+        return float(n.group()) if n else None
+    return val or None
+
+
+def _load_shares(cfg: dict) -> dict:
+    """{code: 주식수} = 시가총액 / 현재가 (최근 snapshot에서). 가치팩터 환산용."""
+    snaps = [f for f in os.listdir(DATA_DIR) if f.startswith("snapshot-")] if os.path.isdir(DATA_DIR) else []
+    if not snaps:
+        return {}
+    with open(os.path.join(DATA_DIR, sorted(snaps)[-1]), encoding="utf-8") as f:
+        recs = json.load(f)
+    out = {}
+    for r in recs:
+        mc = parse_korean_mcap(r.get("market_value_raw"))
+        px = r.get("price")
+        if mc and px:
+            out[r["code"]] = mc / px
+    return out
+
+
+def build_panels_dart(cfg: dict, use_cache: bool = True) -> dict:
+    """장기 패널: DART 다년 재무 + 연장 가격(2019~). 가치팩터용 eps/bps는 주식수로 환산."""
+    blt = cfg["backtest"]
+    codes = [u["code"] for u in cfg["universe"]]
+    bench = blt.get("benchmarks", {})
+    px_path = os.path.join(DATA_DIR, "prices_long.csv")
+    fu_path = os.path.join(DATA_DIR, "fundamentals_dart.json")
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    if use_cache and os.path.exists(px_path) and os.path.exists(fu_path):
+        prices = pd.read_csv(px_path, index_col=0, parse_dates=True)
+        with open(fu_path, encoding="utf-8") as f:
+            fund = {k: {int(fy): v for fy, v in d.items()} for k, d in json.load(f).items()}
+        print(f"캐시 사용: {px_path} ({prices.shape[1]}종), {fu_path}")
+        return {"prices": prices, "fund": fund, "bench": list(bench.keys())}
+
+    s = blt.get("price_history_start", "2019-06-01").replace("-", "")
+    e = blt["end"].replace("-", "")
+    series = {}
+    for n, c in enumerate(codes + list(bench.keys()), 1):
+        try:
+            ser = history.fetch_price_history(c, s, e)
+            if len(ser):
+                series[c] = ser
+            print(f"  가격 [{n}/{len(codes)+len(bench)}] {c} … {len(ser)}일")
+        except Exception as ex:  # noqa: BLE001
+            print(f"  가격 [{n}] {c} … ERROR:{ex}")
+    prices = pd.DataFrame(series).sort_index()
+
+    shares = _load_shares(cfg)
+    cmap = dart.corp_code_map()
+    fund = {}
+    for n, c in enumerate(codes, 1):
+        cc = cmap.get(c)
+        if not cc:
+            fund[c] = {}
+            print(f"  재무 [{n}/{len(codes)}] {c} … corp_code 없음")
+            continue
+        try:
+            hist = dart.fetch_history(cc)
+        except Exception as ex:  # noqa: BLE001
+            hist = {}
+            print(f"  재무 [{n}/{len(codes)}] {c} … ERROR:{ex}")
+            continue
+        sh = shares.get(c)
+        for fy, rec in hist.items():
+            ni, eq = rec.get("net_income"), rec.get("equity")
+            rec["eps"] = (ni / sh) if (sh and ni is not None) else None
+            rec["bps"] = (eq / sh) if (sh and eq is not None) else None
+        fund[c] = hist
+        print(f"  재무 [{n}/{len(codes)}] {c} … FY{sorted(hist.keys())}")
+
+    prices.to_csv(px_path)
+    with open(fu_path, "w", encoding="utf-8") as f:
+        json.dump({k: {str(fy): v for fy, v in d.items()} for k, d in fund.items()},
+                  f, ensure_ascii=False)
+    print(f"저장: {px_path}, {fu_path}")
+    return {"prices": prices, "fund": fund, "bench": list(bench.keys())}
 
 
 # ── 데이터 패널 구축 ─────────────────────────────────────────

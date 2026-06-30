@@ -197,6 +197,39 @@ def rebalance(cfg: dict, asof: str, fetch: bool = True) -> None:
     print(f"리포트: {out_path}")
 
 
+def backtest_long(cfg: dict, asof: str, fetch: bool = False) -> None:
+    print("장기 다레짐 패널 구축 중(DART 재무 + 2019~ 가격)…")
+    panels = bt_mod.build_panels_dart(cfg, use_cache=not fetch)
+    # 장기 윈도우로 백테스트 기간 override
+    cfg = dict(cfg)
+    cfg["backtest"] = dict(cfg["backtest"])
+    cfg["backtest"]["start"] = cfg["backtest"].get("long_start", "2020-01-03")
+    specs = bt_mod.variant_specs(cfg)
+    print(f"장기 팩터 변형 {len(specs)}종 비교({cfg['backtest']['start']}~{cfg['backtest']['end']})…")
+    comp = bt_mod.run_variants(cfg, panels, specs)
+
+    plot_path = _plot_variants(comp, f"장기-{asof}")
+    md = report_mod.render_variants(comp, cfg, asof, plot_path, long_mode=True)
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    out_path = os.path.join(REPORT_DIR, f"백테스트-장기다레짐-{asof}.md")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    print("\n" + "=" * 78)
+    print(f"장기 다레짐 백테스트 · {comp['base']['n_weeks']}주 · {cfg['backtest']['start']}~{cfg['backtest']['end']}")
+    print("=" * 78)
+    rows = [(nm, r["metrics"]["전략"]) for nm, r in comp["variants"].items()]
+    rows.append(("동일가중유니버스", comp["base"]["metrics"]["동일가중유니버스"]))
+    for bnm in comp["base"]["benches"]:
+        rows.append((bnm, comp["base"]["metrics"][bnm]))
+    rows = [r for r in rows if r[1]]
+    rows.sort(key=lambda x: -x[1]["cagr"])
+    print(f"{'전략/벤치':<22}{'누적':>9}{'CAGR':>8}{'Sharpe':>8}{'MDD':>9}")
+    for nm, m in rows:
+        print(f"{nm:<22}{m['total']*100:>+8.1f}%{m['cagr']*100:>+7.1f}%{m['sharpe']:>8.2f}{m['mdd']*100:>+8.1f}%")
+    print(f"\n리포트: {out_path}")
+
+
 def compare(cfg: dict, asof: str, fetch: bool = False) -> None:
     print("백테스트 데이터 패널 구축 중…")
     panels = bt_mod.build_panels(cfg, use_cache=not fetch)
@@ -302,6 +335,9 @@ def main():
     p_rb = sub.add_parser("rebalance", help="주간 리밸런싱 매매지시 생성")
     p_rb.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_rb.add_argument("--no-fetch", action="store_true", help="캐시만 사용")
+    p_bl = sub.add_parser("backtest-long", help="DART 다레짐 장기 백테스트(2020~, 2022 약세장 포함)")
+    p_bl.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
+    p_bl.add_argument("--fetch", action="store_true", help="DART·시계열 재수집(기본: 캐시)")
     args = ap.parse_args()
 
     cfg = load_cfg()
@@ -317,6 +353,8 @@ def main():
         compare(cfg, asof, fetch=args.fetch)
     elif args.cmd == "rebalance":
         rebalance(cfg, asof, fetch=not args.no_fetch)
+    elif args.cmd == "backtest-long":
+        backtest_long(cfg, asof, fetch=args.fetch)
     else:
         ap.print_help()
 

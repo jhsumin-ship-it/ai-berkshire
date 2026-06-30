@@ -62,6 +62,13 @@ def test_perf_mdd_negative():
     assert m["mdd"] < -0.4, f"MDD가 큰 낙폭 반영해야 (got {m['mdd']})"
 
 
+def test_parse_korean_mcap():
+    assert abs(bt.parse_korean_mcap("1,938조 5,504억") - (1938e12 + 5504e8)) < 1e6
+    assert abs(bt.parse_korean_mcap("8,256억") - 8256e8) < 1e6
+    assert abs(bt.parse_korean_mcap("2조 8,742억") - (2e12 + 8742e8)) < 1e6
+    assert bt.parse_korean_mcap("") is None and bt.parse_korean_mcap(None) is None
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

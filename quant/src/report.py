@@ -203,16 +203,20 @@ def render_rebalance(picks, trades_res: dict, port: dict, cfg: dict, asof: str) 
     return "\n".join(L)
 
 
-def render_variants(comp: dict, cfg: dict, asof: str, plot_path: str | None = None) -> str:
+def render_variants(comp: dict, cfg: dict, asof: str, plot_path: str | None = None,
+                    long_mode: bool = False) -> str:
     bt = cfg["backtest"]
     base = comp["base"]
     variants = comp["variants"]
     L = []
-    L.append("# AI Berkshire 주간 리밸런싱 — 팩터 A/B 비교 (Phase 2.5)\n")
+    phase = "Phase 2.1 — 장기 다레짐(DART 재무)" if long_mode else "Phase 2.5"
+    L.append(f"# AI Berkshire 주간 리밸런싱 — 팩터 A/B 비교 ({phase})\n")
     L.append(f"> **기간** {bt['start']} ~ {bt['end']} · 주간 · {base['n_weeks']}주 · "
              f"동일 데이터/비용/캡으로 팩터 조합만 변경\n")
-    L.append("> 모멘텀 = 26주(6개월) 수익률(point-in-time). 컨센·배당 제외(과거 확보불가). "
-             "**투자권유 아님.**\n")
+    src = ("재무 = **DART 정본 다년(FY2017~2025)** + 주식수환산 eps/bps. "
+           "2022 둔화·2023 반도체적자·2024~26 호황을 모두 포함." if long_mode
+           else "모멘텀 = 26주(6개월) 수익률(point-in-time). 컨센·배당 제외(과거 확보불가).")
+    L.append(f"> {src} **투자권유 아님.**\n")
 
     # 변형 + 벤치 통합 성과표 (CAGR 내림차순)
     rows = []
@@ -255,9 +259,15 @@ def render_variants(comp: dict, cfg: dict, asof: str, plot_path: str | None = No
 
     # 해석
     L.append("\n## 3. 한계\n")
-    L.append("- 단일 레짐(2024~26 AI 불장) 2.25년 — 모멘텀 우위는 이 구간 특성일 수 있음(레짐 의존).")
-    L.append("- 모멘텀 추가는 회전율·비용↑. 본 비용가정(편도 0.115%+매도세) 하 순수익 기준.")
-    L.append("- **백테스트 ≠ 실전.** 더 긴 다레짐 검증(DART, Phase 2.1) 권장.")
-    L.append("\n---\n*AI Berkshire quant Phase 2.5 — `python quant/run.py compare`. 투자권유 아님.*")
+    if long_mode:
+        L.append("- DART 12월결산 가정·연결(CFS) 우선. 일부 종목 corp_code/연결 결측 시 해당주 제외.")
+        L.append("- 가치팩터 eps/bps는 **현재 주식수 고정 환산**(과거 증자·분할 미반영, 근사).")
+        L.append("- 생존편향(현 유니버스)·신규상장종목은 상장 전 자동 제외.")
+    else:
+        L.append("- 단일 레짐(2024~26 AI 불장) 2.25년 — 모멘텀 우위는 이 구간 특성일 수 있음(레짐 의존).")
+        L.append("- 모멘텀 추가는 회전율·비용↑. 본 비용가정(편도 0.115%+매도세) 하 순수익 기준.")
+    L.append("- **백테스트 ≠ 실전.** 비용·슬리피지는 가정치.")
+    cmd = "backtest-long" if long_mode else "compare"
+    L.append(f"\n---\n*AI Berkshire quant — `python quant/run.py {cmd}`. 투자권유 아님.*")
     return "\n".join(L)
 

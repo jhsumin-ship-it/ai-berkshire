@@ -1,20 +1,22 @@
 # AI Berkshire 주간 리밸런싱 퀀트 — 설정
 # 8섹터 가치·퀄리티 점수가중 (Phase 1)
 
-# ── 팩터 가중 (퀄50 : 가치25 : 모멘25 — Phase 2.5 백테스트 검증 블렌드) ──
-# 레짐 분해: 가치·퀄리티=하락장 방어, 모멘텀=상승장 캡처. 블렌드가 전 구간 robust.
+# ── 팩터 가중 (가치 50 : 퀄리티 50 — Phase 2.1 다레짐 백테스트로 확정) ──
+# 6.5년(2020~2026, 코로나·2022약세장·2023반도체적자 포함) 검증 결과:
+# 가치·퀄리티 틸트가 수익·Sharpe(1.81)·하락방어(2022 −7%) 모두 우월.
+# Phase 2.5의 모멘텀 우위는 2024~26 불장 과적합이었음 → 모멘텀 제거.
 weights:
   quality: 0.5
-  value: 0.25
-  momentum: 0.25
+  value: 0.5
+  momentum: 0.0
 
 # 퀄리티 팩터 (높을수록 좋음; debt_ratio는 코드에서 부호 반전)
 quality_factors: [roe, op_margin, net_margin, debt_ratio]
 # 가치 팩터 (백테스트 검증과 동일 — earnings_yield·book_yield만 점수화)
 # 컨센 상승여력(upside)·배당은 표시만 하고 점수엔 미반영(과거 검증 불가·노이즈)
 value_factors: [earnings_yield, book_yield]
-# 모멘텀 팩터 (26주 수익률)
-momentum_factors: [mom]
+# 모멘텀: 점수 미반영(weight 0). 표시·실험용으로만 계산.
+momentum_factors: []
 mom_lookback_weeks: 26
 
 # ── 하드 스크린 (통과해야 랭킹 대상) ─────────────────────────
@@ -50,6 +52,9 @@ backtest:
   benchmarks:
     "069500": "KODEX200"
     "229200": "KODEX코스닥150"
+  # 장기·다레짐(DART 재무) 백테스트 — 2022 둔화·2023 반도체 적자 포함
+  long_start: "2020-01-03"
+  price_history_start: "2019-06-01"
 
 # ── 유니버스 (code, name, sector) ───────────────────────────
 # 섹터: AI / 반도체소부장 / 전력 / ESS2차전지 / 로봇 / 조선 / 바이오 / 우주항공방산
