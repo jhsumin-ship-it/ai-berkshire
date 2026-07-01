@@ -65,7 +65,8 @@ schtasks /Create /TN "AI-Berkshire-Weekly-Rebalance" /SC WEEKLY /D SAT /ST 09:00
 > ⚠️ 조건: 그 시각에 **PC가 켜져 있어야** 합니다(로컬 스크립트라 클라우드가 아님).
 
 ### 📲 휴대폰으로 받기 (텔레그램, 설정됨)
-주간 스크립트는 `rebalance --notify`로 실행되어 **텔레그램(aifm 봇)** 으로 매매지시를 발송합니다.
+주간 스크립트는 **매주 (1) 매매지시 `rebalance` (2) 모의투자 `paper`** 를 실행해
+**텔레그램(aifm 봇)** 으로 둘 다 발송하고 리포트를 엽니다.
 - 텔레그램: `AI FACTORY MANAGER\.env`의 aifm 봇 자동 사용(설정 불필요). ✅ 실측 도착 확인.
 - 수동 발송: `python quant/run.py rebalance --notify`
 - (Gmail 발송은 사용 안 함. 나중에 원하면 `quant/notify.example.yaml` 참고해 `notify.yaml`에 앱 비밀번호 추가.)

@@ -242,6 +242,34 @@ def paper(cfg: dict, asof: str, fetch: bool = True, send: bool = False) -> None:
     print(f"누적손익 {v['pnl']:+,.0f}원 ({v['pnl_pct']:+.2f}%) · 회차 {len(state['history'])} · 초기 {state['initial']:,.0f}")
     print(f"상태파일: {paper_mod.STATE_FILE}")
 
+    # 기록용 md 리포트
+    L = [f"# AI Berkshire 모의투자(페이퍼 트레이딩) — {asof}\n",
+         f"> 실제 주문·실제 돈 없음 · 가상계좌 {len(state['history'])}회차 · 가치50·퀄50 · **투자권유 아님**\n",
+         "\n## 평가",
+         f"- 평가총액 **{v['total']:,.0f}원** (현금 {v['cash']:,.0f} + 주식 {v['holdings']:,.0f})",
+         f"- 누적손익 **{v['pnl']:+,.0f}원 ({v['pnl_pct']:+.2f}%)** · 초기 {state['initial']:,.0f}",
+         f"\n## 이번 회차 체결 {len(res['executed'])}건",
+         "| 액션 | 종목(코드) | 주수 | 체결가 |", "|---|---|--:|--:|"]
+    for e in res["executed"]:
+        L.append(f"| {e['action']} | {e['name']}({e['code']}) | {e['shares']:+,d} | {e['price']:,.0f} |")
+    L.append("\n## 현재 보유")
+    L.append("| 종목(코드) | 보유주수 | 현재가 | 평가액 |")
+    L.append("|---|--:|--:|--:|")
+    for c, sh in sorted(state["positions"].items(), key=lambda x: -x[1] * prices.get(x[0], 0)):
+        px = prices.get(c, 0)
+        L.append(f"| {names.get(c, c)}({c}) | {sh:,} | {px:,.0f} | {sh*px:,.0f} |")
+    L.append("\n## 회차 이력 (최근 10)")
+    L.append("| 회차 | 일자 | 체결 | 평가총액 | 누적손익% |")
+    L.append("|--:|---|--:|--:|--:|")
+    for i, h in list(enumerate(state["history"], 1))[-10:]:
+        L.append(f"| {i} | {h['asof']} | {h['trades']} | {h['total_after']:,.0f} | {h['pnl_pct']:+.2f}% |")
+    L.append("\n---\n*`python quant/run.py paper` · 로컬 모의투자. 투자권유 아님.*")
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    paper_report = os.path.join(REPORT_DIR, f"모의투자-{asof}.md")
+    with open(paper_report, "w", encoding="utf-8") as f:
+        f.write("\n".join(L))
+    print(f"리포트: {paper_report}")
+
     if send:
         top = "\n".join(f"· {e['action']} {e['name']} {e['shares']:+,d}주" for e in res["executed"][:10])
         body = (f"평가총액 {v['total']:,.0f}원 ({v['pnl_pct']:+.2f}%)\n체결 {len(res['executed'])}건\n{top}")

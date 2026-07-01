@@ -10,12 +10,17 @@ $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 # 최신 시세·재무로 매매지시 생성 (가치·퀄리티 전략)
 python quant/run.py rebalance --notify 2>&1 | Tee-Object -FilePath $log -Append
 $rc = $LASTEXITCODE
-# 생성된 최신 매매지시 리포트를 자동으로 열기(로그온 세션일 때)
-$report = Get-ChildItem "$repo\reports\quant\리밸런싱-*.md" -ErrorAction SilentlyContinue |
-          Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if ($report) {
-  "리포트: $($report.Name)" | Tee-Object -FilePath $log -Append
-  try { Invoke-Item $report.FullName } catch { "열기 실패(무인세션?): $_" | Tee-Object -FilePath $log -Append }
+# 페이퍼 트레이딩(모의투자)도 같은 데이터로 집행 (--no-fetch로 방금 받은 시세 재사용)
+"--- 페이퍼 트레이딩 ---" | Tee-Object -FilePath $log -Append
+python quant/run.py paper --no-fetch --notify 2>&1 | Tee-Object -FilePath $log -Append
+# 최신 리포트 자동 열기(리밸런싱 + 모의투자)
+foreach ($pat in @('리밸런싱-*.md','모의투자-*.md')) {
+  $r = Get-ChildItem "$repo\reports\quant\$pat" -ErrorAction SilentlyContinue |
+       Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if ($r) {
+    "리포트: $($r.Name)" | Tee-Object -FilePath $log -Append
+    try { Invoke-Item $r.FullName } catch { "열기 실패(무인세션?): $_" | Tee-Object -FilePath $log -Append }
+  }
 }
 "===== 종료(exit=$rc) $(Get-Date -Format 'HH:mm:ss') =====" | Tee-Object -FilePath $log -Append
 exit $rc
