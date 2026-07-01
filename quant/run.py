@@ -35,6 +35,7 @@ import history  # noqa: E402
 import portfolio as pf_mod  # noqa: E402
 import market as market_mod  # noqa: E402
 import notify as notify_mod  # noqa: E402
+import paper as paper_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
@@ -209,6 +210,43 @@ def rebalance(cfg: dict, asof: str, fetch: bool = True, send: bool = False) -> N
         status = notify_mod.notify(subject, "\n".join(lines), cfg)
         labels = {"telegram": "텔레그램", "gmail": "Gmail"}
         print("발송: " + " · ".join(f"{labels.get(k, k)}={v}" for k, v in status.items()))
+
+
+def paper(cfg: dict, asof: str, fetch: bool = True, send: bool = False) -> None:
+    """페이퍼 트레이딩(로컬 모의투자): 리밸런싱을 가상계좌에 집행."""
+    recs = _resolve_recs(cfg, asof, fetch)
+    df, screened, ranked, picks = _rank_frame(cfg, recs)
+    if picks.empty:
+        print("선별 종목 없음 — 모의집행 생략")
+        return
+    prices = {r["code"]: r.get("price") for r in recs if r.get("price")}
+    sectors = {u["code"]: u["sector"] for u in cfg["universe"]}
+    names = {u["code"]: u["name"] for u in cfg["universe"]}
+
+    state = paper_mod.load_state(cfg["rebalance"]["default_cash"])
+    port = {"cash": state["cash"], "positions": state["positions"]}
+    trades = pf_mod.build_trades(picks, port, prices, sectors, names,
+                                 cfg["rebalance"]["band"], cfg["backtest"]["cost"])
+    res = paper_mod.apply_trades(state, trades["trades"], prices, cfg["backtest"]["cost"], asof)
+    paper_mod.save_state(state)
+
+    v = res["value"]
+    print("\n" + "=" * 72)
+    print(f"📄 페이퍼 트레이딩(모의투자) · {asof} · 실제 주문·실제 돈 없음")
+    print("=" * 72)
+    print(f"체결 {len(res['executed'])}건 · 매수 {res['buy']:,.0f} · 매도 {res['sell']:,.0f} · 비용 {res['cost']:,.0f}")
+    for e in res["executed"][:15]:
+        print(f"  {e['action']:<10} {str(e['name'])[:12]:<13} {e['shares']:+,d}주 @ {e['price']:,.0f}")
+    print("-" * 72)
+    print(f"평가총액 {v['total']:,.0f}원 (현금 {v['cash']:,.0f} + 주식 {v['holdings']:,.0f})")
+    print(f"누적손익 {v['pnl']:+,.0f}원 ({v['pnl_pct']:+.2f}%) · 회차 {len(state['history'])} · 초기 {state['initial']:,.0f}")
+    print(f"상태파일: {paper_mod.STATE_FILE}")
+
+    if send:
+        top = "\n".join(f"· {e['action']} {e['name']} {e['shares']:+,d}주" for e in res["executed"][:10])
+        body = (f"평가총액 {v['total']:,.0f}원 ({v['pnl_pct']:+.2f}%)\n체결 {len(res['executed'])}건\n{top}")
+        status = notify_mod.notify(f"[모의투자] {asof} 페이퍼 트레이딩", body, cfg)
+        print("발송: " + " · ".join(f"{k}={x}" for k, x in status.items()))
 
 
 def screen_market(cfg: dict, asof: str, fetch: bool = True, top_per_market: int | None = None) -> None:
@@ -404,6 +442,10 @@ def main():
     p_rb.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_rb.add_argument("--no-fetch", action="store_true", help="캐시만 사용")
     p_rb.add_argument("--notify", action="store_true", help="텔레그램·Gmail 발송")
+    p_pp = sub.add_parser("paper", help="페이퍼 트레이딩(로컬 모의투자) — 가상계좌 집행")
+    p_pp.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
+    p_pp.add_argument("--no-fetch", action="store_true", help="캐시만 사용")
+    p_pp.add_argument("--notify", action="store_true", help="텔레그램 발송")
     p_bl = sub.add_parser("backtest-long", help="DART 다레짐 장기 백테스트(2020~, 2022 약세장 포함)")
     p_bl.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_bl.add_argument("--fetch", action="store_true", help="DART·시계열 재수집(기본: 캐시)")
@@ -426,6 +468,8 @@ def main():
         compare(cfg, asof, fetch=args.fetch)
     elif args.cmd == "rebalance":
         rebalance(cfg, asof, fetch=not args.no_fetch, send=args.notify)
+    elif args.cmd == "paper":
+        paper(cfg, asof, fetch=not args.no_fetch, send=args.notify)
     elif args.cmd == "backtest-long":
         backtest_long(cfg, asof, fetch=args.fetch)
     elif args.cmd == "screen-market":

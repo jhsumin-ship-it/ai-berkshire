@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 portfolio.yaml
 notify.yaml
+.kiwoom_rest.json
+paper_portfolio.json

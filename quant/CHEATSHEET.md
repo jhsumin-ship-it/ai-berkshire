@@ -10,6 +10,15 @@ python quant/run.py rebalance          # 이번 주 매매지시 → reports/qua
 - 보유 현황을 반영하려면 `quant/portfolio.yaml`에 `cash`·`positions` 입력
   (`quant/portfolio.example.yaml` 복사해서 사용). 없으면 1억 전액 현금 가정.
 
+## 모의투자 (페이퍼 트레이딩 — 실제 돈 없음)
+```bash
+python quant/run.py paper               # 가상계좌로 리밸런싱 집행 → paper_portfolio.json 누적
+python quant/run.py paper --notify      # 결과를 텔레그램으로도
+```
+- 초기 1억(가상) → 매주 실행하면 손익 누적. 키움 모의 appkey 없이 즉시 안전 검증.
+- **키움 실계좌 자동주문**은 `quant/src/broker.py`에 준비돼 있으나 **기본 비활성**(실수 방지).
+  키움 정식 모의투자는 별도 '모의 appkey' 발급 필요(실전 appkey는 모의 불가).
+
 ## 전략 점검 / 확장
 ```bash
 python quant/run.py rank                # 현재 유니버스 랭킹·후보포트
