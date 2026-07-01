@@ -207,7 +207,8 @@ def rebalance(cfg: dict, asof: str, fetch: bool = True, send: bool = False) -> N
         lines.append(f"예상비용 {s['est_cost']:,.0f}원")
         subject = f"[AI Berkshire] 주간 리밸런싱 {asof}"
         status = notify_mod.notify(subject, "\n".join(lines), cfg)
-        print(f"발송: 텔레그램={status['telegram']} · Gmail={status['gmail']}")
+        labels = {"telegram": "텔레그램", "gmail": "Gmail"}
+        print("발송: " + " · ".join(f"{labels.get(k, k)}={v}" for k, v in status.items()))
 
 
 def screen_market(cfg: dict, asof: str, fetch: bool = True, top_per_market: int | None = None) -> None:

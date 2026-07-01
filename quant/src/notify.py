@@ -105,9 +105,12 @@ def send_gmail(subject: str, body: str) -> str:
 
 
 def notify(subject: str, text: str, cfg: dict) -> dict:
-    """텔레그램 + Gmail 동시 발송. 각 채널 상태 반환."""
-    return {"telegram": send_telegram(f"<b>{subject}</b>\n{text}", cfg),
-            "gmail": send_gmail(subject, text)}
+    """텔레그램 발송(+Gmail은 자격증명이 설정된 경우에만)."""
+    out = {"telegram": send_telegram(f"<b>{subject}</b>\n{text}", cfg)}
+    user, pw, _ = _gmail_creds()
+    if user and pw:  # Gmail은 앱 비밀번호가 설정됐을 때만 시도
+        out["gmail"] = send_gmail(subject, text)
+    return out
 
 
 if __name__ == "__main__":
