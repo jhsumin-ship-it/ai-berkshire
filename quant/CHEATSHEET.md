@@ -48,22 +48,24 @@ git push                                # → 내 fork(jhsumin-ship-it/ai-berksh
 
 ---
 
-## 🔁 자동 실행 (매주 수요일 1회, 손 안 대고)
-Windows 작업 스케줄러에 **한 번만** 등록하면, 이후 **매주 수요일 자동으로** 리밸런싱 지시가 생성됩니다.
+## 🔁 자동 실행 (매주 수요일·토요일 2회, 손 안 대고)
+Windows 작업 스케줄러에 **한 번만** 등록하면, 이후 **매주 수·토 자동으로** 리밸런싱 지시가 생성됩니다.
 Claude(나)를 부를 필요 없이 PC가 스스로 실행합니다. 매매는 **밴드(±3%p) 이탈 시에만** 발생.
 
-**등록** (PowerShell에서 한 번) — 종가 집행에 맞춰 마감 전 15:00:
+**등록** (PowerShell에서 한 번) — 수·토 15:00 (수요일=마감 전 종가 정렬, 토요일=주말 점검):
 ```powershell
-schtasks /Create /TN "AI-Berkshire-Weekly-Rebalance" /SC WEEKLY /D WED /ST 15:00 /F `
+schtasks /Create /TN "AI-Berkshire-Weekly-Rebalance" /SC WEEKLY /D WED,SAT /ST 15:00 /F `
   /TR "powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\jhsum\code\ai-berkshire\quant\weekly_rebalance.ps1"
 ```
-- 요일·시간 조정: `/D WED`(월 MON·화 TUE·목 THU·금 FRI), `/ST 15:00`.
+- 요일 조정: `/D WED,SAT`(콤마로 여러 요일; 월 MON·화 TUE·목 THU·금 FRI·일 SUN), 시간 `/ST`.
+- 수·토 시간을 다르게 주고 싶으면 작업을 2개로 분리(이름 다르게).
 - **해제**: `schtasks /Delete /TN "AI-Berkshire-Weekly-Rebalance" /F`
 - **확인**: `schtasks /Query /TN "AI-Berkshire-Weekly-Rebalance"`
 - 로그: `quant/data/weekly.log` · 생성 후 리포트 자동 열림.
 
-> ⚠️ 조건: 수요일 15:00에 **PC가 켜져 있어야** 합니다(로컬 스크립트라 클라우드가 아님).
-> 💡 15:00은 **종가 집행**(마감 단일가) 정렬용. 실주문은 별도 `trade --live`(기본 dry-run).
+> ⚠️ 조건: 그 시각에 **PC가 켜져 있어야** 합니다(로컬 스크립트라 클라우드가 아님).
+> 💡 수요일 15:00은 **종가 집행**(마감 단일가) 정렬용. 토요일은 장 마감(금요일 종가) 기준 점검.
+> 실주문은 별도 `trade --live`(기본 dry-run) — 토요일은 장이 닫혀 매매지시·모의만.
 
 ### 📲 휴대폰으로 받기 (텔레그램, 설정됨)
 주간 스크립트는 **매주 (1) 매매지시 `rebalance` (2) 모의투자 `paper`** 를 실행해
