@@ -34,6 +34,7 @@ import backtest as bt_mod  # noqa: E402
 import history  # noqa: E402
 import portfolio as pf_mod  # noqa: E402
 import market as market_mod  # noqa: E402
+import notify as notify_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
@@ -158,7 +159,7 @@ def backtest(cfg: dict, asof: str, fetch: bool = False) -> None:
     print(f"\n리포트: {out_path}")
 
 
-def rebalance(cfg: dict, asof: str, fetch: bool = True) -> None:
+def rebalance(cfg: dict, asof: str, fetch: bool = True, send: bool = False) -> None:
     recs = _resolve_recs(cfg, asof, fetch)
     df, screened, ranked, picks = _rank_frame(cfg, recs)
     if picks.empty:
@@ -196,6 +197,17 @@ def rebalance(cfg: dict, asof: str, fetch: bool = True) -> None:
     else:
         print(f"\n(보유 없음 → 전량 신규매수 가정. {pf_path}로 현황 입력 가능)")
     print(f"리포트: {out_path}")
+
+    if send:
+        lines = [f"총자산 {s['total']:,.0f}원 · 거래 {s['n_trades']}종 · 회전율 {s['turnover']*100:.0f}%"]
+        for _, r in tdf.iterrows():
+            if r["shares"] == 0:
+                continue
+            lines.append(f"· {r['action']} {r['name']} → {r['tgt_w']*100:.0f}% ({r['shares']:+,d}주)")
+        lines.append(f"예상비용 {s['est_cost']:,.0f}원")
+        subject = f"[AI Berkshire] 주간 리밸런싱 {asof}"
+        status = notify_mod.notify(subject, "\n".join(lines), cfg)
+        print(f"발송: 텔레그램={status['telegram']} · Gmail={status['gmail']}")
 
 
 def screen_market(cfg: dict, asof: str, fetch: bool = True, top_per_market: int | None = None) -> None:
@@ -390,6 +402,7 @@ def main():
     p_rb = sub.add_parser("rebalance", help="주간 리밸런싱 매매지시 생성")
     p_rb.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_rb.add_argument("--no-fetch", action="store_true", help="캐시만 사용")
+    p_rb.add_argument("--notify", action="store_true", help="텔레그램·Gmail 발송")
     p_bl = sub.add_parser("backtest-long", help="DART 다레짐 장기 백테스트(2020~, 2022 약세장 포함)")
     p_bl.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_bl.add_argument("--fetch", action="store_true", help="DART·시계열 재수집(기본: 캐시)")
@@ -411,7 +424,7 @@ def main():
     elif args.cmd == "compare":
         compare(cfg, asof, fetch=args.fetch)
     elif args.cmd == "rebalance":
-        rebalance(cfg, asof, fetch=not args.no_fetch)
+        rebalance(cfg, asof, fetch=not args.no_fetch, send=args.notify)
     elif args.cmd == "backtest-long":
         backtest_long(cfg, asof, fetch=args.fetch)
     elif args.cmd == "screen-market":

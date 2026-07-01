@@ -54,4 +54,10 @@ schtasks /Create /TN "AI-Berkshire-Weekly-Rebalance" /SC WEEKLY /D SAT /ST 09:00
 - 로그: `quant/data/weekly.log` · 생성 후 리포트 자동 열림.
 
 > ⚠️ 조건: 그 시각에 **PC가 켜져 있어야** 합니다(로컬 스크립트라 클라우드가 아님).
-> 휴대폰으로 받고 싶으면 텔레그램/이메일 발송을 추가할 수 있습니다(요청 시).
+
+### 📲 휴대폰/메일로 받기 (설정됨)
+주간 스크립트는 `rebalance --notify`로 실행되어 **텔레그램(aifm 봇) + Gmail**로 매매지시를 발송합니다.
+- 텔레그램: `AI FACTORY MANAGER\.env`의 aifm 봇 자동 사용(설정 불필요). ✅
+- Gmail: `quant/notify.yaml`의 `app_password`에 **Google 앱 비밀번호 16자리**를 넣으면 활성화.
+  (생성: Google 계정 → 보안 → 2단계인증 → 앱 비밀번호)
+- 수동 발송: `python quant/run.py rebalance --notify`

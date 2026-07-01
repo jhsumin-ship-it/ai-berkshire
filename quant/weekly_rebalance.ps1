@@ -8,7 +8,7 @@ New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
 $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 "`n===== $ts 주간 리밸런싱 시작 =====" | Tee-Object -FilePath $log -Append
 # 최신 시세·재무로 매매지시 생성 (가치·퀄리티 전략)
-python quant/run.py rebalance 2>&1 | Tee-Object -FilePath $log -Append
+python quant/run.py rebalance --notify 2>&1 | Tee-Object -FilePath $log -Append
 $rc = $LASTEXITCODE
 # 생성된 최신 매매지시 리포트를 자동으로 열기(로그온 세션일 때)
 $report = Get-ChildItem "$repo\reports\quant\리밸런싱-*.md" -ErrorAction SilentlyContinue |
