@@ -37,6 +37,15 @@ rebalance:
   band: 0.03               # 목표대비 ±3%p 벗어날 때만 거래(회전율·비용 절감)
   default_cash: 100000000  # portfolio.yaml 없을 때 가정 자본(원)
 
+# ── 실계좌 자동주문 안전장치 (키움 REST) ─────────────────────
+# 기본은 dry-run(표시만). 라이브는 --live + --confirm 토큰 + 아래 한도 모두 통과해야 실행.
+live_trade:
+  confirm_token: "매매실행"   # --confirm 에 이 값 정확히 입력해야 실주문
+  max_order_value: 2000000   # 1회 주문 최대 금액(원) — 초과 주문은 스킵
+  max_total_value: 20000000  # 회당 총 주문금액 상한(원)
+  universe_only: true        # 유니버스 밖 보유종목은 절대 건드리지 않음(임의 매도 금지)
+  market_hours_only: true    # 장중(평일 09:00~15:20 KST)에만 실주문
+
 # ── 전체시장 스크리닝 (Phase 5, 유니버스 자동확장) ───────────
 market_screen:
   markets: [KOSPI, KOSDAQ]

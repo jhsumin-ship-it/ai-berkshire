@@ -36,6 +36,7 @@ import portfolio as pf_mod  # noqa: E402
 import market as market_mod  # noqa: E402
 import notify as notify_mod  # noqa: E402
 import paper as paper_mod  # noqa: E402
+import broker as broker_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
@@ -210,6 +211,95 @@ def rebalance(cfg: dict, asof: str, fetch: bool = True, send: bool = False) -> N
         status = notify_mod.notify(subject, "\n".join(lines), cfg)
         labels = {"telegram": "텔레그램", "gmail": "Gmail"}
         print("발송: " + " · ".join(f"{labels.get(k, k)}={v}" for k, v in status.items()))
+
+
+def _kr_market_open() -> bool:
+    now = dt.datetime.now()
+    if now.weekday() >= 5:  # 주말
+        return False
+    t = now.hour * 60 + now.minute
+    return 9 * 60 <= t <= 15 * 60 + 20
+
+
+def trade(cfg: dict, asof: str, live: bool = False, capital: float | None = None,
+          confirm: str | None = None, force: bool = False, fetch: bool = True) -> None:
+    """키움 실계좌 리밸런싱 집행. 기본 dry-run(표시만). 라이브는 다중 안전장치 통과 필요."""
+    lt = cfg["live_trade"]
+    uni_codes = {u["code"] for u in cfg["universe"]}
+
+    b = broker_mod.KiwoomREST(force_mock=False)
+    if not b.connect():
+        print("키움 연결 실패 — 실행 취소")
+        return
+    holdings = b.get_holdings()
+    held = {h["ticker"]: h for h in holdings}
+    # 유니버스 밖 보유는 건드리지 않음: 포지션·평가액 모두 유니버스 기준으로만
+    positions = {t: h["quantity"] for t, h in held.items() if t in uni_codes}
+    uni_eval = sum(h["eval_amount"] for t, h in held.items() if t in uni_codes)
+    total = float(capital) if capital else (uni_eval if uni_eval > 0 else cfg["rebalance"]["default_cash"])
+    cash = max(total - uni_eval, 0.0)
+
+    recs = _resolve_recs(cfg, asof, fetch=fetch)
+    df, screened, ranked, picks = _rank_frame(cfg, recs)
+    prices = {r["code"]: r.get("price") for r in recs if r.get("price")}
+    for t, h in held.items():
+        prices.setdefault(t, h["cur_price"])
+    sectors = {u["code"]: u["sector"] for u in cfg["universe"]}
+    names = {u["code"]: u["name"] for u in cfg["universe"]}
+
+    port = {"cash": cash, "positions": positions}
+    trades = pf_mod.build_trades(picks, port, prices, sectors, names,
+                                 cfg["rebalance"]["band"], cfg["backtest"]["cost"])
+    tdf = trades["trades"]
+    if lt.get("universe_only", True):  # 유니버스 밖 종목은 절대 주문 안 함
+        tdf = tdf[tdf["code"].isin(uni_codes)]
+    orders = tdf[tdf["shares"] != 0].copy()
+
+    mode = "🔴 라이브(실주문)" if live else "🟢 DRY-RUN(표시만, 실주문 없음)"
+    print("\n" + "=" * 72)
+    print(f"키움 실계좌 매매 · {mode} · 총자산기준 {total:,.0f}원")
+    print("=" * 72)
+    if orders.empty:
+        print("주문 없음(밴드 내 유지)")
+        return
+    for _, r in orders.iterrows():
+        print(f"  {r['action']:<10} {str(r['name'])[:12]:<13} {r['shares']:+,d}주 "
+              f"@ 시장가 (~{abs(r['trade_val']):,.0f}원)")
+    tot_val = orders["trade_val"].abs().sum()
+    print(f"  총 주문금액 ~{tot_val:,.0f}원 · {len(orders)}건")
+
+    if not live:
+        print("\nDRY-RUN이라 실제 주문은 넣지 않았습니다.")
+        print(f"실행하려면: python quant/run.py trade --live --confirm \"{lt['confirm_token']}\" --capital <자본>")
+        return
+
+    # ── 라이브 게이트 ──
+    if confirm != lt.get("confirm_token"):
+        print(f"\n❌ 확인 토큰 불일치 — --confirm \"{lt.get('confirm_token')}\" 필요. 실행 취소.")
+        return
+    if lt.get("market_hours_only", True) and not _kr_market_open() and not force:
+        print("\n❌ 장중(평일 09:00~15:20) 아님 — 실주문 취소. (--force로 강제)")
+        return
+    if tot_val > lt.get("max_total_value", 0):
+        print(f"\n❌ 총주문 {tot_val:,.0f} > 상한 {lt['max_total_value']:,.0f} — 취소.")
+        return
+
+    print("\n🔴 실주문 집행 시작…")
+    log = []
+    for _, r in orders.iterrows():
+        val = abs(r["trade_val"])
+        sh = int(r["shares"])
+        if val > lt.get("max_order_value", 0):
+            print(f"  스킵(1회한도초과) {r['name']} {val:,.0f}")
+            continue
+        res = b.buy(r["code"], sh) if sh > 0 else b.sell(r["code"], -sh)  # 시장가
+        tag = "성공" if res.success else f"실패:{res.message}"
+        print(f"  {'매수' if sh > 0 else '매도'} {r['name']} {abs(sh)}주 → {tag} {res.order_no}")
+        log.append({"code": r["code"], "name": r["name"], "shares": sh,
+                    "success": res.success, "order_no": res.order_no, "msg": res.message})
+    with open(os.path.join(DATA_DIR, "live_trade.log"), "a", encoding="utf-8") as f:
+        f.write(json.dumps({"asof": asof, "orders": log}, ensure_ascii=False) + "\n")
+    print("실주문 집행 완료. (체결은 키움에서 확인)")
 
 
 def paper(cfg: dict, asof: str, fetch: bool = True, send: bool = False) -> None:
@@ -474,6 +564,13 @@ def main():
     p_pp.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_pp.add_argument("--no-fetch", action="store_true", help="캐시만 사용")
     p_pp.add_argument("--notify", action="store_true", help="텔레그램 발송")
+    p_td = sub.add_parser("trade", help="키움 실계좌 매매(기본 dry-run, 라이브는 안전장치)")
+    p_td.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
+    p_td.add_argument("--live", action="store_true", help="실주문 실행(미지정=dry-run)")
+    p_td.add_argument("--capital", type=float, default=None, help="총자산(원). 미지정시 보유평가액")
+    p_td.add_argument("--confirm", default=None, help="라이브 확인 토큰")
+    p_td.add_argument("--force", action="store_true", help="장중 아니어도 강제")
+    p_td.add_argument("--no-fetch", action="store_true", help="캐시만 사용")
     p_bl = sub.add_parser("backtest-long", help="DART 다레짐 장기 백테스트(2020~, 2022 약세장 포함)")
     p_bl.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_bl.add_argument("--fetch", action="store_true", help="DART·시계열 재수집(기본: 캐시)")
@@ -498,6 +595,9 @@ def main():
         rebalance(cfg, asof, fetch=not args.no_fetch, send=args.notify)
     elif args.cmd == "paper":
         paper(cfg, asof, fetch=not args.no_fetch, send=args.notify)
+    elif args.cmd == "trade":
+        trade(cfg, asof, live=args.live, capital=args.capital,
+              confirm=args.confirm, force=args.force, fetch=not args.no_fetch)
     elif args.cmd == "backtest-long":
         backtest_long(cfg, asof, fetch=args.fetch)
     elif args.cmd == "screen-market":
