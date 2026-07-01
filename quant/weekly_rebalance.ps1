@@ -10,5 +10,12 @@ $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 # 최신 시세·재무로 매매지시 생성 (가치·퀄리티 전략)
 python quant/run.py rebalance 2>&1 | Tee-Object -FilePath $log -Append
 $rc = $LASTEXITCODE
+# 생성된 최신 매매지시 리포트를 자동으로 열기(로그온 세션일 때)
+$report = Get-ChildItem "$repo\reports\quant\리밸런싱-*.md" -ErrorAction SilentlyContinue |
+          Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($report) {
+  "리포트: $($report.Name)" | Tee-Object -FilePath $log -Append
+  try { Invoke-Item $report.FullName } catch { "열기 실패(무인세션?): $_" | Tee-Object -FilePath $log -Append }
+}
 "===== 종료(exit=$rc) $(Get-Date -Format 'HH:mm:ss') =====" | Tee-Object -FilePath $log -Append
 exit $rc
