@@ -1,5 +1,6 @@
 # AI Berkshire 주간 리밸런싱 자동 실행 래퍼
-# Windows 작업 스케줄러에서 매주 호출. 로그는 quant/data/weekly.log.
+# Windows 작업 스케줄러에서 매주 수요일 15:00 호출(종가 집행 정렬). 로그는 quant/data/weekly.log.
+# 매매는 밴드(±3%p) 이탈 시에만. 실주문은 별도 trade --live(기본 dry-run).
 $ErrorActionPreference = "Continue"
 $repo = "C:\Users\jhsum\code\ai-berkshire"
 Set-Location $repo
