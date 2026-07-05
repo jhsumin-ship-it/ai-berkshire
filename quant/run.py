@@ -37,6 +37,7 @@ import market as market_mod  # noqa: E402
 import notify as notify_mod  # noqa: E402
 import paper as paper_mod  # noqa: E402
 import broker as broker_mod  # noqa: E402
+import us_momentum as us_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
@@ -542,6 +543,64 @@ def _plot_equity(res: dict, asof: str):
     return path
 
 
+def _load_us_cfg() -> dict:
+    with open(os.path.join(ROOT, "us_config.yaml"), encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def us_rebalance(asof: str, send: bool = False) -> None:
+    """미국 성장주 모멘텀 리밸런싱 매매지시 생성(신호). 실행은 수동."""
+    ucfg = _load_us_cfg()
+    pf_path = os.path.join(ROOT, "us_portfolio.yaml")
+    fx = us_mod.usdkrw()
+    default_cash_usd = ucfg["capital"]["default_capital_krw"] / fx
+    port = pf_mod.load_portfolio(pf_path, default_cash_usd)  # cash·positions(USD·shares)
+
+    print("나스닥100 시세 수집 중(yfinance)…")
+    picks, prices_now = us_mod.build_picks(ucfg, list(port["positions"].keys()))
+    if picks.empty:
+        print("선별 종목 없음 — 매매지시 생략")
+        return
+
+    prices = {r["code"]: r["price"] for _, r in picks.iterrows()}
+    for c in port["positions"]:  # 보유종목 현재가 보강
+        prices.setdefault(c, float(prices_now.get(c, 0.0)))
+    sectors = {r["code"]: "US" for _, r in picks.iterrows()}
+    names = {r["code"]: r["name"] for _, r in picks.iterrows()}
+
+    trades = pf_mod.build_trades(picks, port, prices, sectors, names,
+                                 ucfg["strategy"]["band"], ucfg["cost"])
+    md = us_mod.render_report(picks, trades, port, fx, asof)
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    out_path = os.path.join(REPORT_DIR, f"미국리밸런싱-{asof}.md")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(md)
+
+    s = trades["summary"]
+    print("\n" + "=" * 72)
+    print(f"미국 모멘텀 리밸런싱 · 총자산 ${s['total']:,.0f} (≈{s['total']*fx:,.0f}원) · "
+          f"거래 {s['n_trades']}종 · 회전율 {s['turnover']*100:.1f}%")
+    print("=" * 72)
+    od = {"신규매수": 0, "추가매수": 1, "일부매도": 2, "전량매도": 3, "유지(밴드내)": 4}
+    tdf = trades["trades"].sort_values(by="action", key=lambda x: x.map(od))
+    for _, r in tdf.iterrows():
+        sh = "—" if r["shares"] == 0 else f"{int(r['shares']):+,d}주"
+        print(f"  {r['action']:<10} {str(r['name'])[:8]:<9} {r['cur_w']*100:>5.1f}%→{r['tgt_w']*100:>5.1f}%  {sh}")
+    if not port["positions"]:
+        print(f"\n(보유 없음 → 전량 신규매수 가정. {pf_path}로 현황 입력)")
+    print(f"리포트: {out_path}")
+
+    if send:
+        lines = [f"총자산 ${s['total']:,.0f}(≈{s['total']*fx/1e4:,.0f}만원) · 거래 {s['n_trades']}종 · 회전율 {s['turnover']*100:.0f}%"]
+        for _, r in tdf.iterrows():
+            if r["shares"] == 0:
+                continue
+            lines.append(f"· {r['action']} {r['name']} → {r['tgt_w']*100:.0f}% ({int(r['shares']):+,d}주)")
+        subject = f"[AI Berkshire] 미국 모멘텀 리밸런싱 {asof}"
+        status = notify_mod.notify(subject, "\n".join(lines), {})
+        print("발송: " + " · ".join(f"{k}={v}" for k, v in status.items()))
+
+
 def main():
     ap = argparse.ArgumentParser(description="AI Berkshire 주간 리밸런싱 퀀트")
     sub = ap.add_subparsers(dest="cmd")
@@ -578,6 +637,9 @@ def main():
     p_sm.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_sm.add_argument("--no-fetch", action="store_true", help="캐시만 사용")
     p_sm.add_argument("--top", type=int, default=None, help="시장별 시총상위 N 사전필터")
+    p_us = sub.add_parser("us-rebalance", help="미국 성장주 모멘텀 리밸런싱 매매지시(신호)")
+    p_us.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
+    p_us.add_argument("--notify", action="store_true", help="텔레그램 발송")
     args = ap.parse_args()
 
     cfg = load_cfg()
@@ -602,6 +664,8 @@ def main():
         backtest_long(cfg, asof, fetch=args.fetch)
     elif args.cmd == "screen-market":
         screen_market(cfg, asof, fetch=not args.no_fetch, top_per_market=args.top)
+    elif args.cmd == "us-rebalance":
+        us_rebalance(asof, send=args.notify)
     else:
         ap.print_help()
 

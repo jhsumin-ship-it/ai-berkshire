@@ -1,0 +1,107 @@
+# AI Berkshire 미국 성장주 모멘텀 퀀트 — 설정
+# 전략: 나스닥100 중 12-1 모멘텀 상위 10종목 동일가중, 주간 신호 + 순위버퍼 20.
+# 백테스트(2009~2026): CAGR 35.9%·Sharpe 1.25·MDD -37.0%·세후(22%) 28.0% (생존편향 감안 보수적 해석)
+
+strategy:
+  n_hold: 10             # 보유 종목수
+  buffer: 20             # 순위버퍼 — 기존 보유가 이 순위 밖일 때만 교체
+  lookback_weeks: 52     # 모멘텀 룩백(주)
+  skip_weeks: 4          # 최근 제외(단기반전 회피) → 12-1 모멘텀
+  band: 0.03             # 비중 드리프트 밴드(±3%p) — 밴드 내 유지 시 거래 없음
+
+capital:
+  default_capital_krw: 50000000   # 초기자본(원). us_portfolio.yaml 없을 때 가정
+
+# 거래비용(편도). 미국은 수수료 낮으나 슬리피지 반영. 매도세=한국 해외주식 양도세는 리포트에 별도 고지(집행 시 아님).
+cost:
+  commission: 0.0005
+  slippage: 0.0005
+  sell_tax: 0.0          # 양도세는 연말 실현 기준이라 회전 비용에 미포함(리포트서 별도 안내)
+
+# 나스닥100 근사 유니버스(현재 구성 기준, ~84종목). 정기 갱신 필요.
+# ⚠️ 생존편향: 과거 탈락종목 미포함 → 백테스트 낙관. 실전은 forward 보수적 해석.
+universe:
+  - AAPL
+  - MSFT
+  - NVDA
+  - AMZN
+  - GOOGL
+  - GOOG
+  - META
+  - TSLA
+  - AVGO
+  - COST
+  - NFLX
+  - ADBE
+  - PEP
+  - AMD
+  - CSCO
+  - TMUS
+  - INTC
+  - QCOM
+  - INTU
+  - TXN
+  - AMAT
+  - AMGN
+  - ISRG
+  - BKNG
+  - HON
+  - VRTX
+  - ADP
+  - SBUX
+  - GILD
+  - ADI
+  - MU
+  - LRCX
+  - REGN
+  - MDLZ
+  - PANW
+  - KLAC
+  - SNPS
+  - CDNS
+  - MELI
+  - MAR
+  - PYPL
+  - ABNB
+  - CRWD
+  - ORLY
+  - CTAS
+  - NXPI
+  - FTNT
+  - ASML
+  - CHTR
+  - MRVL
+  - WDAY
+  - MNST
+  - PCAR
+  - PAYX
+  - ODFL
+  - ROP
+  - KDP
+  - DXCM
+  - IDXX
+  - CPRT
+  - FAST
+  - EA
+  - CSGP
+  - VRSK
+  - EXC
+  - CTSH
+  - XEL
+  - TTD
+  - DDOG
+  - KHC
+  - LULU
+  - BKR
+  - "ON"      # 따옴표 필수: YAML이 on/off/yes/no를 불리언으로 파싱함
+  - BIIB
+  - ZS
+  - TEAM
+  - MDB
+  - DLTR
+  - WBD
+  - ILMN
+  - MCHP
+  - AZN
+  - LIN
+  - CEG

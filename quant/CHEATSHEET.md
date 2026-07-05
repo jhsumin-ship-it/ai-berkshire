@@ -10,6 +10,15 @@ python quant/run.py rebalance          # 이번 주 매매지시 → reports/qua
 - 보유 현황을 반영하려면 `quant/portfolio.yaml`에 `cash`·`positions` 입력
   (`quant/portfolio.example.yaml` 복사해서 사용). 없으면 1억 전액 현금 가정.
 
+## 미국 성장주 모멘텀 (나스닥100, 별도 계좌)
+```bash
+python quant/run.py us-rebalance          # 미국 매매지시(신호) → reports/quant/미국리밸런싱-*.md
+python quant/run.py us-rebalance --notify # 텔레그램으로도
+```
+- 나스닥100 중 12-1 모멘텀 상위 **10종목 동일가중**, 순위버퍼 20. 초기 5천만원(환산).
+- 보유는 `quant/us_portfolio.yaml`(cash·positions, USD). 실행은 **수동**(미국 브로커, 키움 아님).
+- ⚠️ 모멘텀은 섹터 쏠림·급반전 위험. 백테스트 CAGR 35.9%는 생존편향 → forward 보수적.
+
 ## 모의투자 (페이퍼 트레이딩 — 실제 돈 없음)
 ```bash
 python quant/run.py paper               # 가상계좌로 리밸런싱 집행 → paper_portfolio.json 누적

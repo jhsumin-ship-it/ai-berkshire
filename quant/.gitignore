@@ -2,6 +2,7 @@ data/
 __pycache__/
 *.pyc
 portfolio.yaml
+us_portfolio.yaml
 notify.yaml
 .kiwoom_rest.json
 paper_portfolio.json
