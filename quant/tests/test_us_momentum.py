@@ -79,6 +79,41 @@ def test_select_empty_when_no_valid():
     assert picks.empty
 
 
+def _sector_panel():
+    """5종목: A~D는 반도체(모멘텀 순), E는 소프트웨어."""
+    idx = pd.date_range("2025-01-03", periods=60, freq="W-FRI")
+    data = {
+        "A": np.linspace(100, 300, 60),
+        "B": np.linspace(100, 250, 60),
+        "C": np.linspace(100, 200, 60),
+        "D": np.linspace(100, 160, 60),
+        "E": np.linspace(100, 130, 60),  # 소프트웨어, 모멘텀 최하
+    }
+    smap = {"A": "반도체", "B": "반도체", "C": "반도체", "D": "반도체", "E": "소프트웨어"}
+    return pd.DataFrame(data, index=idx), smap
+
+
+def test_sector_cap_limits_concentration():
+    """섹터당 최대 2면, 반도체 4종목(A~D) 중 상위 2개만 담고 나머지는 다른 섹터로."""
+    px, smap = _sector_panel()
+    ranked = um.momentum_series(px, lookback=52, skip=4)
+    picks = um.select(ranked, px.iloc[-1], holdings=[], n_hold=3, buffer=20,
+                      sector_map=smap, max_per_sector=2)
+    semis = [c for c in picks["code"] if smap[c] == "반도체"]
+    assert len(semis) == 2, f"반도체 최대 2 기대, 실제 {len(semis)}"
+    assert "E" in set(picks["code"]), "상한으로 밀려 다른 섹터(E) 편입"
+    assert list(picks["code"]) == ["A", "B", "E"]  # 반도체 상위 2 + 소프트웨어
+
+
+def test_sector_cap_zero_means_no_limit():
+    """max_per_sector=0이면 상한 없음(전부 반도체 가능)."""
+    px, smap = _sector_panel()
+    ranked = um.momentum_series(px, lookback=52, skip=4)
+    picks = um.select(ranked, px.iloc[-1], holdings=[], n_hold=3, buffer=20,
+                      sector_map=smap, max_per_sector=0)
+    assert list(picks["code"]) == ["A", "B", "C"]  # 상한 없으면 반도체 상위 3
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -49,22 +49,42 @@ def momentum_series(px: pd.DataFrame, lookback: int, skip: int) -> pd.Series:
 
 
 def select(ranked: pd.Series, prices_now: pd.Series, holdings: list[str],
-           n_hold: int, buffer: int) -> pd.DataFrame:
-    """모멘텀 순위 + 순위버퍼로 보유 n_hold종목 선택 → picks(code·weight·price·mom·name)."""
+           n_hold: int, buffer: int, sector_map: dict | None = None,
+           max_per_sector: int = 0) -> pd.DataFrame:
+    """모멘텀 순위 + 순위버퍼 + 섹터상한으로 n_hold종목 선택 → picks(code·weight·price·mom·name·sector).
+
+    섹터상한(max_per_sector>0): 한 섹터에서 이 수를 넘겨 담지 않음(쏠림 방지).
+    우선순위: 버퍼 안 기존보유(순위순) → 신규 모멘텀 상위. 모두 섹터상한을 준수.
+    """
+    sector_map = sector_map or {}
     rank_of = {tk: r for r, tk in enumerate(ranked.index, 1)}
-    keep = [h for h in holdings if rank_of.get(h, 10 ** 9) <= buffer]
-    target: list[str] = list(keep)
+    valid_set = set(ranked.index)
+    sec_cnt: dict[str, int] = {}
+    target: list[str] = []
+
+    def try_add(tk: str) -> None:
+        if tk in target or len(target) >= n_hold:
+            return
+        sec = sector_map.get(tk, "기타")
+        if max_per_sector and sec_cnt.get(sec, 0) >= max_per_sector:
+            return
+        target.append(tk)
+        sec_cnt[sec] = sec_cnt.get(sec, 0) + 1
+
+    # 1) 버퍼 안 기존보유 유지(모멘텀 순위순), 2) 신규 상위로 채움 — 둘 다 섹터상한 준수
+    for h in sorted([h for h in holdings if h in valid_set and rank_of.get(h, 10 ** 9) <= buffer],
+                    key=lambda x: rank_of[x]):
+        try_add(h)
     for tk in ranked.index:
         if len(target) >= n_hold:
             break
-        if tk not in target:
-            target.append(tk)
-    target = target[:n_hold]
+        try_add(tk)
+
     if not target:
         return pd.DataFrame(columns=["code", "name", "sector", "weight", "price", "mom"])
     w = 100.0 / len(target)  # 동일가중(합 정확히 100). 표시 시에만 반올림.
     rows = [{
-        "code": tk, "name": tk, "sector": "US",
+        "code": tk, "name": tk, "sector": sector_map.get(tk, "US"),
         "weight": w, "price": float(prices_now.get(tk, 0.0)),
         "mom": float(ranked.get(tk, float("nan"))),
     } for tk in target]
@@ -75,10 +95,17 @@ def build_picks(cfg: dict, holdings: list[str],
                 px: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.Series]:
     """설정+보유 → (picks, 현재가Series). px 미지정 시 yfinance 수집."""
     s = cfg["strategy"]
+    sector_map = cfg.get("sectors", {})
+    max_sec = s.get("max_per_sector", 0)
+    if max_sec:  # 검증: 미분류 종목은 "기타"로 빠져 섹터상한을 우회함 → 조기 경고
+        missing = [str(t) for t in cfg["universe"] if str(t) not in sector_map]
+        if missing:
+            print(f"⚠️ 섹터 미분류 {len(missing)}종(상한 우회 위험): {', '.join(missing)}")
     if px is None:
         px = weekly_prices(cfg["universe"])
     ranked = momentum_series(px, s["lookback_weeks"], s["skip_weeks"])
-    picks = select(ranked, px.iloc[-1], holdings, s["n_hold"], s["buffer"])
+    picks = select(ranked, px.iloc[-1], holdings, s["n_hold"], s["buffer"],
+                   sector_map=sector_map, max_per_sector=max_sec)
     return picks, px.iloc[-1]
 
 

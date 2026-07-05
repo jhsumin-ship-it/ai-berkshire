@@ -8,6 +8,7 @@ strategy:
   lookback_weeks: 52     # 모멘텀 룩백(주)
   skip_weeks: 4          # 최근 제외(단기반전 회피) → 12-1 모멘텀
   band: 0.03             # 비중 드리프트 밴드(±3%p) — 밴드 내 유지 시 거래 없음
+  max_per_sector: 4      # 섹터당 최대 종목수(쏠림 방지). 10종목이면 한 섹터 최대 40%
 
 capital:
   default_capital_krw: 50000000   # 초기자본(원). us_portfolio.yaml 없을 때 가정
@@ -17,6 +18,93 @@ cost:
   commission: 0.0005
   slippage: 0.0005
   sell_tax: 0.0          # 양도세는 연말 실현 기준이라 회전 비용에 미포함(리포트서 별도 안내)
+
+# 섹터 분류(쏠림 상한용). 반도체가 나스닥100에서 가장 커 모멘텀 쏠림의 주원인.
+sectors:
+  AAPL: 소비재
+  MSFT: 소프트웨어
+  NVDA: 반도체
+  AMZN: 소비재
+  GOOGL: 인터넷미디어
+  GOOG: 인터넷미디어
+  META: 인터넷미디어
+  TSLA: 소비재
+  AVGO: 반도체
+  COST: 소비재
+  NFLX: 인터넷미디어
+  ADBE: 소프트웨어
+  PEP: 소비재
+  AMD: 반도체
+  CSCO: 통신
+  TMUS: 통신
+  INTC: 반도체
+  QCOM: 반도체
+  INTU: 소프트웨어
+  TXN: 반도체
+  AMAT: 반도체
+  AMGN: 헬스케어
+  ISRG: 헬스케어
+  BKNG: 인터넷미디어
+  HON: 산업재
+  VRTX: 헬스케어
+  ADP: 소프트웨어
+  SBUX: 소비재
+  GILD: 헬스케어
+  ADI: 반도체
+  MU: 반도체
+  LRCX: 반도체
+  REGN: 헬스케어
+  MDLZ: 소비재
+  PANW: 소프트웨어
+  KLAC: 반도체
+  SNPS: 소프트웨어
+  CDNS: 소프트웨어
+  MELI: 인터넷미디어
+  MAR: 소비재
+  PYPL: 인터넷미디어
+  ABNB: 인터넷미디어
+  CRWD: 소프트웨어
+  ORLY: 소비재
+  CTAS: 소비재
+  NXPI: 반도체
+  FTNT: 소프트웨어
+  ASML: 반도체
+  CHTR: 인터넷미디어
+  MRVL: 반도체
+  WDAY: 소프트웨어
+  MNST: 소비재
+  PCAR: 소비재
+  PAYX: 소프트웨어
+  ODFL: 소비재
+  ROP: 소프트웨어
+  KDP: 소비재
+  DXCM: 헬스케어
+  IDXX: 헬스케어
+  CPRT: 소비재
+  FAST: 소비재
+  EA: 인터넷미디어
+  CSGP: 소프트웨어
+  VRSK: 소프트웨어
+  EXC: 유틸에너지
+  CTSH: 소프트웨어
+  XEL: 유틸에너지
+  TTD: 인터넷미디어
+  DDOG: 소프트웨어
+  KHC: 소비재
+  LULU: 소비재
+  BKR: 유틸에너지
+  "ON": 반도체     # 따옴표 필수: YAML이 on을 불리언으로 파싱함
+  BIIB: 헬스케어
+  ZS: 소프트웨어
+  TEAM: 소프트웨어
+  MDB: 소프트웨어
+  DLTR: 소비재
+  WBD: 인터넷미디어
+  ILMN: 헬스케어
+  MCHP: 반도체
+  AZN: 헬스케어
+  LIN: 유틸에너지
+  CEG: 유틸에너지
 
 # 나스닥100 근사 유니버스(현재 구성 기준, ~84종목). 정기 갱신 필요.
 # ⚠️ 생존편향: 과거 탈락종목 미포함 → 백테스트 낙관. 실전은 forward 보수적 해석.
