@@ -1,0 +1,17 @@
+# AI Berkshire 긴급 급변동 알람 — 설정
+# 각 시장 마감 후 감시(하루 2회). 임계 초과 시에만 텔레그램 긴급 알람. 리밸런싱은 자동 안 함.
+
+emergency:
+  index_pct: 5.0        # 지수 일간 등락 임계(±%)
+  vix_level: 35.0       # VIX 절대수준 임계(이상)
+  vix_jump_pct: 30.0    # VIX 일간 급등 임계(+%)
+  holding_pct: 10.0     # 보유종목 일간 등락 임계(±%)
+
+# 감시 지수 (yfinance 티커: 표시명). ^ 시작 티커는 따옴표 필수.
+indices:
+  "^KS11": KOSPI
+  "^KQ11": KOSDAQ
+  "^GSPC": S&P500
+  "QQQ": 나스닥100
+
+vix_ticker: "^VIX"

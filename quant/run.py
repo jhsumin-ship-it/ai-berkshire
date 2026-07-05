@@ -38,6 +38,7 @@ import notify as notify_mod  # noqa: E402
 import paper as paper_mod  # noqa: E402
 import broker as broker_mod  # noqa: E402
 import us_momentum as us_mod  # noqa: E402
+import emergency as emg_mod  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
@@ -548,6 +549,36 @@ def _load_us_cfg() -> dict:
         return yaml.safe_load(f)
 
 
+def emergency_check(asof: str, send: bool = False) -> None:
+    """지수·VIX·보유종목 급변동 감지 → 임계 초과 시 텔레그램 긴급 알람(리밸런싱 자동 안 함)."""
+    with open(os.path.join(ROOT, "emergency_config.yaml"), encoding="utf-8") as f:
+        ecfg = yaml.safe_load(f)
+    # 보유종목: KR=portfolio.yaml(코드), US=us_portfolio.yaml(티커)
+    kr = pf_mod.load_portfolio(os.path.join(ROOT, "portfolio.yaml"), 0)
+    us = pf_mod.load_portfolio(os.path.join(ROOT, "us_portfolio.yaml"), 0)
+    kr_codes = list(kr["positions"].keys())
+    us_tickers = list(us["positions"].keys())
+    kr_names = {u["code"]: u["name"] for u in load_cfg().get("universe", [])}
+
+    print("급변동 감지 중(지수·VIX·보유종목)…")
+    triggered = emg_mod.check_shocks(ecfg, kr_codes, us_tickers, kr_names)
+    if not triggered:
+        print("급변동 없음(임계 내). 알람 미발송.")
+        return
+
+    msg = emg_mod.format_alarm(triggered)
+    print("\n" + "=" * 60)
+    print(f"🚨 긴급 급변동 {len(triggered)}건 감지")
+    print("=" * 60)
+    for t in triggered:
+        print(f"  [{t['kind']}] {t['name']} {t['value']:+.1f} ({t['direction']})")
+    if send:
+        status = notify_mod.notify(f"[AI Berkshire] 🚨 긴급 급변동 {asof}", msg, {})
+        print("발송: " + " · ".join(f"{k}={v}" for k, v in status.items()))
+    else:
+        print("\n(--notify 미지정 — 알람 미발송)")
+
+
 def us_rebalance(asof: str, send: bool = False) -> None:
     """미국 성장주 모멘텀 리밸런싱 매매지시 생성(신호). 실행은 수동."""
     ucfg = _load_us_cfg()
@@ -640,6 +671,9 @@ def main():
     p_us = sub.add_parser("us-rebalance", help="미국 성장주 모멘텀 리밸런싱 매매지시(신호)")
     p_us.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_us.add_argument("--notify", action="store_true", help="텔레그램 발송")
+    p_em = sub.add_parser("emergency-check", help="지수·VIX·보유 급변동 감지 → 긴급 알람")
+    p_em.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
+    p_em.add_argument("--notify", action="store_true", help="텔레그램 발송")
     args = ap.parse_args()
 
     cfg = load_cfg()
@@ -666,6 +700,8 @@ def main():
         screen_market(cfg, asof, fetch=not args.no_fetch, top_per_market=args.top)
     elif args.cmd == "us-rebalance":
         us_rebalance(asof, send=args.notify)
+    elif args.cmd == "emergency-check":
+        emergency_check(asof, send=args.notify)
     else:
         ap.print_help()
 

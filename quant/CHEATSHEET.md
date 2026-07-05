@@ -19,6 +19,15 @@ python quant/run.py us-rebalance --notify # 텔레그램으로도
 - 보유는 `quant/us_portfolio.yaml`(cash·positions, USD). 실행은 **수동**(미국 브로커, 키움 아님).
 - ⚠️ 모멘텀은 섹터 쏠림·급반전 위험. 백테스트 CAGR 35.9%는 생존편향 → forward 보수적.
 
+## 긴급 급변동 알람 (지수·VIX·보유 급변동 감지)
+```bash
+python quant/run.py emergency-check            # 감지만(콘솔)
+python quant/run.py emergency-check --notify   # 임계 초과 시 텔레그램 긴급 알람
+```
+- 임계(중간): 지수 ±5% · VIX 35이상/+30% · 보유종목 ±10% (`quant/emergency_config.yaml` 조정).
+- 각 시장 마감 후 하루 2회 자동(아래 스케줄러). 초과 시에만 알람(피로 방지).
+- 알람은 **인지용**(매매지시 아님). 급락 반응매매는 대개 손해 → 관망 기본. 긴급 리밸런싱 원하면 수동 트리거.
+
 ## 모의투자 (페이퍼 트레이딩 — 실제 돈 없음)
 ```bash
 python quant/run.py paper               # 가상계좌로 리밸런싱 집행 → paper_portfolio.json 누적
