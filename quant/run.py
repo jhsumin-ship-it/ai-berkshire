@@ -632,6 +632,67 @@ def us_rebalance(asof: str, send: bool = False) -> None:
         print("발송: " + " · ".join(f"{k}={v}" for k, v in status.items()))
 
 
+_HEARTBEAT = os.path.join(DATA_DIR, "last_success.json")
+_STAMP_FMT = "%Y-%m-%d %H:%M:%S"
+
+
+def alert(subject: str, text: str, cfg: dict) -> None:
+    """임의 메시지 발송 — 래퍼 스크립트가 실패를 알릴 때 호출."""
+    status = notify_mod.notify(subject, text, cfg)
+    print("발송: " + " · ".join(f"{k}={v}" for k, v in status.items()))
+
+
+def _load_stamps() -> dict:
+    if not os.path.exists(_HEARTBEAT):
+        return {}
+    try:
+        with open(_HEARTBEAT, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def mark_success(job: str) -> None:
+    """성공 도장 — healthcheck가 이 시각으로 지연을 판단."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    stamps = _load_stamps()
+    stamps[job] = dt.datetime.now().strftime(_STAMP_FMT)
+    with open(_HEARTBEAT, "w", encoding="utf-8") as f:
+        json.dump(stamps, f, ensure_ascii=False, indent=2)
+    print(f"성공기록: {job} @ {stamps[job]}")
+
+
+def healthcheck(job: str, max_age_days: float, send: bool, cfg: dict) -> int:
+    """마지막 성공 이후 경과 점검 → 임계 초과면 알람. 정상이면 조용. 지연이면 1 반환.
+
+    래퍼 안에서 보내는 실패알림은 프로세스가 강제종료되면 못 뜬다(7/15가 그 경우).
+    그 사각을 외부에서 덮는 게 이 점검이다 — 다른 스케줄(긴급알람)에 얹어 돌린다.
+    """
+    raw = _load_stamps().get(job)
+    last = None
+    if raw:
+        try:
+            last = dt.datetime.strptime(raw, _STAMP_FMT)
+        except ValueError:
+            last = None
+    if last is None:
+        msg = f"{job}: 성공기록 없음 (최초 실행 전이거나 기록 유실)"
+    else:
+        age = (dt.datetime.now() - last).total_seconds() / 86400
+        if age <= max_age_days:
+            print(f"{job}: 정상 — 마지막 성공 {last:%Y-%m-%d %H:%M} ({age:.1f}일 전)")
+            return 0
+        msg = (f"{job}: 마지막 성공이 {age:.1f}일 전 ({last:%Y-%m-%d %H:%M})\n"
+               f"임계 {max_age_days}일 초과 — 자동실행이 조용히 실패했을 수 있습니다.\n\n"
+               f"확인: {os.path.join(DATA_DIR, 'weekly.log')}\n"
+               f'schtasks /query /tn "AI-Berkshire-Weekly-Rebalance" /fo LIST /v')
+    print("[지연] " + msg)
+    if send:
+        status = notify_mod.notify("[AI Berkshire] ⚠️ 자동실행 지연 감지", msg, cfg)
+        print("발송: " + " · ".join(f"{k}={v}" for k, v in status.items()))
+    return 1
+
+
 def main():
     ap = argparse.ArgumentParser(description="AI Berkshire 주간 리밸런싱 퀀트")
     sub = ap.add_subparsers(dest="cmd")
@@ -674,6 +735,15 @@ def main():
     p_em = sub.add_parser("emergency-check", help="지수·VIX·보유 급변동 감지 → 긴급 알람")
     p_em.add_argument("--asof", default=None, help="기준일 YYYYMMDD")
     p_em.add_argument("--notify", action="store_true", help="텔레그램 발송")
+    p_al = sub.add_parser("alert", help="임의 메시지 텔레그램 발송(래퍼 실패알림용)")
+    p_al.add_argument("--subject", default="[AI Berkshire] 알림", help="제목")
+    p_al.add_argument("--text", required=True, help="본문")
+    p_ms = sub.add_parser("mark-success", help="작업 성공 도장(healthcheck 기준시각 갱신)")
+    p_ms.add_argument("--job", default="weekly", help="작업 이름")
+    p_hc = sub.add_parser("healthcheck", help="마지막 성공 이후 경과 점검 → 지연시 알람")
+    p_hc.add_argument("--job", default="weekly", help="작업 이름")
+    p_hc.add_argument("--max-age-days", type=float, default=4.0, help="지연 임계(일)")
+    p_hc.add_argument("--notify", action="store_true", help="텔레그램 발송")
     args = ap.parse_args()
 
     cfg = load_cfg()
@@ -702,6 +772,13 @@ def main():
         us_rebalance(asof, send=args.notify)
     elif args.cmd == "emergency-check":
         emergency_check(asof, send=args.notify)
+    elif args.cmd == "alert":
+        alert(args.subject, args.text, cfg)
+    elif args.cmd == "mark-success":
+        mark_success(args.job)
+    elif args.cmd == "healthcheck":
+        # 지연을 '감지'한 것과 '도구가 실패'한 건 다르다 → 감지해도 exit 0(알람이 곧 결과).
+        healthcheck(args.job, args.max_age_days, send=args.notify, cfg=cfg)
     else:
         ap.print_help()
 

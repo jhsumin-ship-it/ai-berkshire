@@ -5,3 +5,10 @@ reports/.DS_Store
 
 # 雪球爬虫登录态缓存（含 cookies，本地使用）
 /tmp/xueqiu_state.json
+
+# 파이썬 캐시
+**/__pycache__/
+
+# 개인 실자산 — 이 fork는 PUBLIC 저장소라 추적 금지 (파일은 이 PC에만 보관)
+quant/holdings.json
+reports/quant/가족자산운용플랜.md
